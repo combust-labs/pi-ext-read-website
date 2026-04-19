@@ -1,0 +1,22 @@
+{
+  "name": "pi-mono-ext-read-website",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "clean": "echo 'nothing to clean'",
+    "build": "echo 'nothing to build'",
+    "check": "echo 'nothing to check'"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "dependencies": {
+    "@mozilla/readability": "0.6.0",
+    "jsdom": "^29.0.2",
+    "puppeteer": "^24.40.0",
+    "turndown": "^7.2.4"
+  }
+}
