@@ -3,10 +3,10 @@
  * Read website tool - read a website readable content and return the extracted the article text as markdown.
  */
 
-import { JSDOM } from 'jsdom';
-import puppeteer, { Browser, Page, LaunchOptions, ConnectOptions } from 'puppeteer';
 import { promises as fs } from 'fs';
+import { JSDOM } from 'jsdom';
 import * as path from 'path';
+import puppeteer, { Browser, ConnectOptions, LaunchOptions, Page } from 'puppeteer';
 import TurndownService from 'turndown';
 
 import { Type } from '@mariozechner/pi-ai';
@@ -31,7 +31,8 @@ interface PuppeteerLaunchConfig {
 }
 
 interface PuppeteerConnectConfig {
-  browserWSEndpoint: string;
+  // HTTP URL that returns the JSON endpoint list (e.g., http://localhost:9222/json)
+  endpoint: string;
 }
 
 interface PuppeteerConfig {
@@ -53,7 +54,7 @@ interface ExtensionConfig {
 async function loadConfig(): Promise<ExtensionConfig> {
   const possiblePaths = [
     path.join(process.env.HOME || '', '.pi', 'agent', 'extensions', 'read-website', 'config.json'),
-    path.join(process.env.HOME || '', '.pi', 'extensions', 'read-website', 'config.json'),
+    path.join(process.cwd(), '.pi', 'extensions', 'read-website', 'config.json'),
   ];
   for (const p of possiblePaths) {
     try {
@@ -97,10 +98,33 @@ export default function readWebsite(pi: ExtensionAPI) {
       const config = await loadConfig();
       const puppeteerCfg = config.puppeteer ?? { mode: 'launch' };
       let browser: Browser;
-      if (puppeteerCfg.mode === 'connect' && puppeteerCfg.connect?.browserWSEndpoint) {
-        const connectOpts: ConnectOptions = {
-          browserWSEndpoint: puppeteerCfg.connect.browserWSEndpoint,
-        };
+      if (puppeteerCfg.mode === 'connect' && puppeteerCfg.connect?.endpoint) {
+        // Discover the actual WebSocket debugger URL via the provided HTTP endpoint.
+        // The endpoint is expected to be Chrome’s `/json/version` endpoint, which returns a
+        // single JSON object like:
+        //   { "Browser": "...", "Protocol-Version": "...", "webSocketDebuggerUrl": "ws://...", … }
+        // Hence we only need to read the `webSocketDebuggerUrl` property.
+        let wsUrl: string | undefined;
+        try {
+          const response = await fetch(puppeteerCfg.connect.endpoint);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch ${puppeteerCfg.connect.endpoint}: ${response.status}`);
+          }
+          const data = await response.json();
+          // `data` is a plain object – pull the property directly.
+          if (typeof data?.webSocketDebuggerUrl === 'string') {
+            wsUrl = data.webSocketDebuggerUrl;
+          }
+          if (!wsUrl) {
+            throw new Error('webSocketDebuggerUrl not found in response');
+          }
+        } catch (e) {
+          return {
+            content: [{ type: "text", text: `Failed to resolve browser WebSocket endpoint: ${e}` }],
+            details: {},
+          } as any;
+        }
+        const connectOpts: ConnectOptions = { browserWSEndpoint: wsUrl };
         browser = await puppeteer.connect(connectOpts);
       } else {
         // launch mode (default)
@@ -114,7 +138,6 @@ export default function readWebsite(pi: ExtensionAPI) {
         browser = await puppeteer.launch(launchOpts);
       }
       const page: Page = await browser.newPage();
-
       await page.goto(url, {
         waitUntil: 'networkidle2', // Waits for the challenge redirect to finish
       });

@@ -55,7 +55,9 @@ $HOME/.pi/extensions/read-website/config.json
       "args": ["--no-sandbox"]            // optional extra args
     },
     "connect": {
-      "browserWSEndpoint": "ws://127.0.0.1:9222/devtools/browser/abcd"
+      // HTTP URL that points to Chrome’s `/json/version` endpoint.
+      // Example: "http://127.0.0.1:9222/json/version"
+      "endpoint": "http://127.0.0.1:9222/json/version"
     }
   },
   "turndown": {
@@ -66,7 +68,7 @@ $HOME/.pi/extensions/read-website/config.json
 ```
 * `puppeteer.mode` decides whether the extension launches a new Chromium instance (`launch`) or connects to an already‑running browser (`connect`).
 * When `mode` is `launch`, any values under `puppeteer.launch` override the built‑in defaults (`headless:true`, `args:['--no-sandbox']`).
-* When `mode` is `connect`, the extension uses the provided `browserWSEndpoint` to attach to the remote browser.
+* When `mode` is `connect`, the extension expects an HTTP URL that points to Chrome’s `/json/version` endpoint. It fetches that URL, extracts the `webSocketDebuggerUrl` from the JSON response, and uses it to attach to the remote browser.
 * The `turndown` object is merged onto Turndown’s constructor, allowing you to change heading or code‑block styles.
 
 If the file is missing or a section is omitted, the extension uses its internal defaults (launch mode with `/usr/bin/chromium`, ATX headings, fenced code blocks).
@@ -80,13 +82,40 @@ The tool will respond with a Pi‑formatted message containing the article data 
 ## Running inside pi-mono-docker container
 The Docker image built using [pi-mono-docker](https://github.com/combust-labs/pi-mono-docker) is configured for Puppeteer but the Chrome browser isn't installed by default. You have the following options to get Chrome installed in the image:
 
-1. If using the default Docker image, the container runs as root and will be able to install Chrome from the APT repository, once you start your `ppi`, simply ask the agent on the first use:
+1. **Install Chromium at runtime** – If using the default Docker image, the container runs as root and can install Chrome from the APT repository. Once you start your `ppi`, simply ask the agent on the first use:
 
 ```
 execute `apt-get install -y chromium` via bash once
 ```
 
-2. To use a non-root image, build your own image and install Chrome during the image build.
+2. **Build a custom image** – For non‑root images, build your own Docker image and install Chrome during the image build.
+
+3. **Run a separate headless‑Chrome container and connect to it** – Start a remote Chrome instance in its own container and have the extension connect via the `connect` mode. Example:
+
+```bash
+docker run --rm --shm-size=2g --name=headless-chrome -ti docker.io/chromedp/headless-shell:latest
+```
+
+Obtain the container’s IP address:
+
+```bash
+CONTAINER_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' headless-chrome)
+```
+
+Configure the extension to connect to this remote Chrome:
+
+```json
+{
+  "puppeteer": {
+    "mode": "connect",
+    "connect": {
+      "endpoint": "http://$CONTAINER_IP:9222/json/version"
+    }
+  }
+}
+```
+
+With this configuration the Pi‑mono agent will use the remote headless Chrome instance via Puppeteer’s `connect` method.
 
 ## CAPTCHAs and CloudFlare Turnstile
 This extension does not attempt solving CAPTCHAs, nor defeating CloudFlare Turnstile. This is not a general-purpose scraper, this extension is a good citizen who simply attempts to read what they can.
