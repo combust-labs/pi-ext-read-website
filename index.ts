@@ -56,6 +56,20 @@ async function loadConfig(): Promise<ExtensionConfig> {
     path.join(process.env.HOME || '', '.pi', 'agent', 'extensions', 'read-website', 'config.json'),
     path.join(process.cwd(), '.pi', 'extensions', 'read-website', 'config.json'),
   ];
+
+  // Check for environment variable after defining default paths.
+  // If READ_WEBSITE_CONFIG is set and points to an existing file, prepend it.
+  const envPath = process.env.READ_WEBSITE_CONFIG;
+  if (envPath) {
+    try {
+      await fs.access(envPath);
+      // Prepend so it has highest priority.
+      possiblePaths.unshift(envPath);
+    } catch (e) {
+      // envPath does not exist or is not accessible – ignore.
+    }
+  }
+
   for (const p of possiblePaths) {
     try {
       const data = await fs.readFile(p, { encoding: 'utf-8' });
