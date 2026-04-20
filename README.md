@@ -36,6 +36,41 @@ pi.registerTool({
 - `puppeteer` – head‑less Chrome.
 - `turndown` – HTML → Markdown conversion.
 
+## Configuration
+The extension can be customized via a JSON configuration file. The file is optional; if it does not exist the extension falls back to sensible defaults.
+
+**Supported locations** (the first existing file is used):
+```
+$HOME/.pi/agent/extensions/read-website/config.json
+$HOME/.pi/extensions/read-website/config.json
+```
+
+### Configuration schema
+```json
+{
+  "puppeteer": {
+    "mode": "launch",               // "launch" (default) or "connect"
+    "launch": {
+      "executablePath": "/usr/bin/chromium", // optional, defaults to this path
+      "args": ["--no-sandbox"]            // optional extra args
+    },
+    "connect": {
+      "browserWSEndpoint": "ws://127.0.0.1:9222/devtools/browser/abcd"
+    }
+  },
+  "turndown": {
+    "headingStyle": "atx",          // "atx" (default) or "setext"
+    "codeBlockStyle": "fenced"      // "fenced" (default) or "indented"
+  }
+}
+```
+* `puppeteer.mode` decides whether the extension launches a new Chromium instance (`launch`) or connects to an already‑running browser (`connect`).
+* When `mode` is `launch`, any values under `puppeteer.launch` override the built‑in defaults (`headless:true`, `args:['--no-sandbox']`).
+* When `mode` is `connect`, the extension uses the provided `browserWSEndpoint` to attach to the remote browser.
+* The `turndown` object is merged onto Turndown’s constructor, allowing you to change heading or code‑block styles.
+
+If the file is missing or a section is omitted, the extension uses its internal defaults (launch mode with `/usr/bin/chromium`, ATX headings, fenced code blocks).
+
 ## Usage example
 ```json
 { "name": "read-website", "parameters": { "url": "https://example.com/article" } }

@@ -4,7 +4,9 @@
  */
 
 import { JSDOM } from 'jsdom';
-import puppeteer, { Browser, Page } from 'puppeteer';
+import puppeteer, { Browser, Page, LaunchOptions, ConnectOptions } from 'puppeteer';
+import { promises as fs } from 'fs';
+import * as path from 'path';
 import TurndownService from 'turndown';
 
 import { Type } from '@mariozechner/pi-ai';
@@ -22,9 +24,47 @@ type HttpResponse = {
  * @param length - Desired password length (default 24).
  * @returns A securely generated password string.
  */
-async function getDocumentBody(url: string): Promise<HttpResponse> {
-  const response = await fetch(url);
-  return { statusCode: response.status, responseBody: await response.text() }
+// Helper to load optional JSON configuration for the extension.
+interface PuppeteerLaunchConfig {
+  executablePath?: string;
+  args?: string[];
+}
+
+interface PuppeteerConnectConfig {
+  browserWSEndpoint: string;
+}
+
+interface PuppeteerConfig {
+  mode: 'launch' | 'connect';
+  launch?: PuppeteerLaunchConfig;
+  connect?: PuppeteerConnectConfig;
+}
+
+interface TurndownConfig {
+  headingStyle?: 'atx' | 'setext';
+  codeBlockStyle?: 'indented' | 'fenced';
+}
+
+interface ExtensionConfig {
+  puppeteer?: PuppeteerConfig;
+  turndown?: TurndownConfig;
+}
+
+async function loadConfig(): Promise<ExtensionConfig> {
+  const possiblePaths = [
+    path.join(process.env.HOME || '', '.pi', 'agent', 'extensions', 'read-website', 'config.json'),
+    path.join(process.env.HOME || '', '.pi', 'extensions', 'read-website', 'config.json'),
+  ];
+  for (const p of possiblePaths) {
+    try {
+      const data = await fs.readFile(p, { encoding: 'utf-8' });
+      return JSON.parse(data) as ExtensionConfig;
+    } catch (e) {
+      // ignore missing file errors, continue to next path
+    }
+  }
+  // Return empty config if none found
+  return {};
 }
 
 const ReadWebsiteParams = Type.Object({
@@ -53,12 +93,26 @@ export default function readWebsite(pi: ExtensionAPI) {
         };
       }
 
-      // Launch the browser in headless mode
-      const browser: Browser = await puppeteer.launch({
-        args: ['--no-sandbox'],
-        executablePath: "/usr/bin/chromium",
-        headless: true
-      });
+      // Prepare Puppeteer based on configuration
+      const config = await loadConfig();
+      const puppeteerCfg = config.puppeteer ?? { mode: 'launch' };
+      let browser: Browser;
+      if (puppeteerCfg.mode === 'connect' && puppeteerCfg.connect?.browserWSEndpoint) {
+        const connectOpts: ConnectOptions = {
+          browserWSEndpoint: puppeteerCfg.connect.browserWSEndpoint,
+        };
+        browser = await puppeteer.connect(connectOpts);
+      } else {
+        // launch mode (default)
+        const launchOpts: LaunchOptions = {
+          args: ['--no-sandbox'],
+          headless: true,
+          // Use configured executablePath if provided, otherwise fallback to current default
+          executablePath: puppeteerCfg.launch?.executablePath ?? "/usr/bin/chromium",
+          ...(puppeteerCfg.launch?.args ? { args: puppeteerCfg.launch.args } : {}),
+        };
+        browser = await puppeteer.launch(launchOpts);
+      }
       const page: Page = await browser.newPage();
 
       await page.goto(url, {
@@ -73,15 +127,17 @@ export default function readWebsite(pi: ExtensionAPI) {
 
       if (article === null) {
         return {
-          content: [{ type: "text", text: `Invalid response. Could not read the article from the HTTP response (status: ${response.statusCode})` }],
+          content: [{ type: "text", text: `Invalid response. Could not read the article from the page.` }],
           details: {},
         };
       }
 
-      const turndownService = new TurndownService({
-        headingStyle: 'atx', // Use # for headings
-        codeBlockStyle: 'fenced' // Use ``` for code blocks
-      });
+      const turndownDefaults = {
+        headingStyle: 'atx' as const,
+        codeBlockStyle: 'fenced' as const,
+      };
+      const turndownOpts = { ...turndownDefaults, ...(config.turndown ?? {}) };
+      const turndownService = new TurndownService(turndownOpts);
 
       const markdownContent = turndownService.turndown(article.content ?? "")
 
