@@ -8,16 +8,13 @@ import { JSDOM } from 'jsdom';
 import * as path from 'path';
 import puppeteer, { Browser, ConnectOptions, LaunchOptions, Page } from 'puppeteer';
 import TurndownService from 'turndown';
+import { Type } from 'typebox';
 
-import { Type } from '@mariozechner/pi-ai';
 import { Readability } from '@mozilla/readability';
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { Static } from 'typebox';
 
-type HttpResponse = {
-  statusCode: number;
-  responseBody: string,
-}
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 /**
  * Generate a random password.
@@ -82,20 +79,23 @@ async function loadConfig(): Promise<ExtensionConfig> {
   return {};
 }
 
-const ReadWebsiteParams = Type.Object({
-	url: Type.Required(Type.String({ description: "Page URL to call and read as markdown" })),
+export const ReadWebsiteSchema = Type.Object({
+	url: Type.String({ description: "Page URL to call and read as markdown" }),
 });
+
+export type ReadWebsiteSchema = Static<typeof ReadWebsiteSchema>
 
 export default function readWebsite(pi: ExtensionAPI) {                                                                                                                                                                             
   pi.registerTool({
     name: "read-website",
-    label: "ReadWebsite",
-    description: [
-      "Read website using reader view approach.",
-      "Extract article content as markdown.",
-      "use this tool whenever a user asks to read a website, learn more, discover more, followed by a URL."
-    ].join(" "),
-    parameters: ReadWebsiteParams,
+    label: "read-website",
+    description: `Read website using reader view, extract article content as markdown.
+
+Use this tool whenever a user asks to read a website, learn more, discover more, followed by a URL.
+
+Execution:
+- read website: { url: "your URL" }`,
+    parameters: ReadWebsiteSchema,
     
     async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
       
