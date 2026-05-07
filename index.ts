@@ -152,36 +152,40 @@ Execution:
         browser = await puppeteer.launch(launchOpts);
       }
       const page: Page = await browser.newPage();
-      await page.goto(url, {
-        waitUntil: 'networkidle2', // Waits for the challenge redirect to finish
-      });
+      try {
+        await page.goto(url, {
+          waitUntil: 'networkidle2', // Waits for the challenge redirect to finish
+        });
 
-      const html = await page.content();
+        const html = await page.content();
 
-      const doc = new JSDOM(html, { url: url })
-      const reader = new Readability(doc.window.document);
-      const article = reader.parse();
+        const doc = new JSDOM(html, { url: url })
+        const reader = new Readability(doc.window.document);
+        const article = reader.parse();
 
-      if (article === null) {
-        return {
-          content: [{ type: "text", text: `Invalid response. Could not read the article from the page.` }],
-          details: {},
+        if (article === null) {
+          return {
+            content: [{ type: "text", text: `Invalid response. Could not read the article from the page.` }],
+            details: {},
+          };
+        }
+
+        const turndownDefaults = {
+          headingStyle: 'atx' as const,
+          codeBlockStyle: 'fenced' as const,
         };
+        const turndownOpts = { ...turndownDefaults, ...(config.turndown ?? {}) };
+        const turndownService = new TurndownService(turndownOpts);
+
+        const markdownContent = turndownService.turndown(article.content ?? "")
+
+        return {
+          content: [{ type: "text", text: markdownContent }],
+          details: { article: JSON.stringify(article) },
+        };
+      } finally {
+        await page.close();
       }
-
-      const turndownDefaults = {
-        headingStyle: 'atx' as const,
-        codeBlockStyle: 'fenced' as const,
-      };
-      const turndownOpts = { ...turndownDefaults, ...(config.turndown ?? {}) };
-      const turndownService = new TurndownService(turndownOpts);
-
-      const markdownContent = turndownService.turndown(article.content ?? "")
-
-      return {
-        content: [{ type: "text", text: markdownContent }],
-        details: { article: JSON.stringify(article) },
-      };
 
     }
 
