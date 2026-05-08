@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "noEmit": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "typeRoots": ["./node_modules/@types", "./types"],
+    "skipLibCheck": true
+  },
+  "include": ["index.ts", "types/**/*.d.ts"],
+  "exclude": ["node_modules"]
+}

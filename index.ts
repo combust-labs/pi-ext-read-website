@@ -14,7 +14,7 @@ import { Readability } from '@mozilla/readability';
 
 import type { Static } from 'typebox';
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@mariozechner/pi-agent-core";
 
 /**
  * Generate a random password.
@@ -63,7 +63,7 @@ async function loadConfig(): Promise<ExtensionConfig> {
       // Prepend so it has highest priority.
       possiblePaths.unshift(envPath);
     } catch (e) {
-      // envPath does not exist or is not accessible – ignore.
+      // envPath does not exist or is not accessible - ignore.
     }
   }
 
@@ -85,7 +85,7 @@ export const ReadWebsiteSchema = Type.Object({
 
 export type ReadWebsiteSchema = Static<typeof ReadWebsiteSchema>
 
-export default function readWebsite(pi: ExtensionAPI) {                                                                                                                                                                             
+export default function readWebsite(pi: ExtensionAPI) {
   pi.registerTool({
     name: "read-website",
     label: "read-website",
@@ -96,9 +96,9 @@ Use this tool whenever a user asks to read a website, learn more, discover more,
 Execution:
 - read website: { url: "your URL" }`,
     parameters: ReadWebsiteSchema,
-    
-    async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
-      
+
+    async execute(_toolCallId: string, params: ReadWebsiteSchema, _signal: AbortSignal | undefined, _onUpdate: (update: unknown) => void, _ctx: unknown) {
+
       const url = (params.url ?? "").trim();
 
       if (url === "") {
@@ -114,15 +114,37 @@ Execution:
       let browser: Browser;
       if (puppeteerCfg.mode === 'connect' && puppeteerCfg.connect?.endpoint) {
         // Discover the actual WebSocket debugger URL via the provided HTTP endpoint.
-        // The endpoint is expected to be Chrome’s `/json/version` endpoint, which returns a
+        // The endpoint is expected to be Chrome's `/json/version` endpoint, which returns a
         // single JSON object like:
         //   { "Browser": "...", "Protocol-Version": "...", "webSocketDebuggerUrl": "ws://...", … }
         // Hence we only need to read the `webSocketDebuggerUrl` property.
         let wsUrl: string | undefined;
+
+        // Chromedp appears to be reachable over the IP address only.
+        // When trying to reach it via the hostname, the /json/version
+        // endpoint returns HTTP 500 error. Resolve the IP first, use
+        // the IP address to connect to the browser.
+        let endpoint = puppeteerCfg.connect.endpoint;
         try {
-          const response = await fetch(puppeteerCfg.connect.endpoint);
+          const urlObj = new URL(puppeteerCfg.connect.endpoint);
+          if (urlObj.hostname && !/^\d+\.\d+\.\d+\.\d+$/.test(urlObj.hostname)) {
+            const { lookup } = await import('node:dns');
+            const addresses = await new Promise<import('node:dns').LookupAddress[]>((resolve, reject) => {
+              lookup(urlObj.hostname, { all: true }, (err, addr) => err ? reject(err) : resolve(addr));
+            });
+            if (addresses.length > 0) {
+              const resolvedIp = addresses[0].address;
+              endpoint = endpoint.replace(urlObj.hostname, resolvedIp);
+            }
+          }
+        } catch (e) {
+          // DNS resolution failed, use original wsUrl
+        }
+
+        try {
+          const response = await fetch(endpoint);
           if (!response.ok) {
-            throw new Error(`Failed to fetch ${puppeteerCfg.connect.endpoint}: ${response.status}`);
+            throw new Error(`Failed to fetch ${endpoint}: ${response.status}`);
           }
           const data = await response.json();
           // `data` is a plain object – pull the property directly.
