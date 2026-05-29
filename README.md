@@ -1,8 +1,8 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# pi-mono extension: read-website
+# pi extension: read-website
 
-**Purpose**: Provides a pi-mono tool `read-website` that loads a web page, extracts the main article using Mozilla's *Readability* algorithm, converts it to Markdown with *Turndown*, and returns the result to the pi-mono agent runtime.
+**Purpose**: Provides a pi tool `read-website` that loads a web page, extracts the main article using Mozilla's *Readability* algorithm, converts it to Markdown with *Turndown*, and returns the result to the pi agent runtime.
 
 ## How it works
 1. **Validate URL** - ensures the `url` parameter is present.
@@ -11,7 +11,7 @@
 4. **Grab HTML** (`page.content`).
 5. **Parse article** using `jsdom` → `Readability`.
 6. **Convert to Markdown** with `TurndownService`.
-7. **Return** a pi-mono-compatible response containing the raw article JSON and the Markdown string.
+7. **Return** a pi-compatible response containing the raw article JSON and the Markdown string.
 
 ## Tool registration
 The extension registers the tool through the Pi `ExtensionAPI`:
@@ -79,8 +79,8 @@ If the file is missing or a section is omitted, the extension uses its internal 
 ```
 The tool will respond with a Pi-formatted message containing the article data and its Markdown rendering.
 
-## Running inside pi-mono-docker container
-The Docker image built using [pi-mono-docker](https://github.com/combust-labs/pi-mono-docker) is configured for Puppeteer but the Chrome browser isn't installed by default. You have the following options to get Chrome installed in the image:
+## Running inside pi-docker container
+The Docker image built using [pi-docker](https://github.com/combust-labs/pi-docker) is configured for Puppeteer but the Chrome browser isn't installed by default. You have the following options to get Chrome installed in the image:
 
 1. **Install Chromium at runtime** - If using the default Docker image, the container runs as root and can install Chrome from the APT repository. Once you start your `ppi`, simply ask the agent on the first use:
 
