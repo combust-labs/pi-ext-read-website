@@ -14,7 +14,7 @@
     ]
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "^0.77.0",
+    "@earendil-works/pi-agent-core": "^0.80.2",
     "@mozilla/readability": "0.6.0",
     "jsdom": "^29.0.2",
     "puppeteer": "^24.40.0",
