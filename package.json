@@ -14,12 +14,14 @@
     ]
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "^0.80.2",
     "@mozilla/readability": "0.6.0",
     "jsdom": "^29.0.2",
     "puppeteer": "^24.40.0",
-    "turndown": "^7.2.4",
-    "typebox": "^1.1.24"
+    "turndown": "^7.2.4"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-agent-core": "*",
+    "typebox": "*"
   },
   "devDependencies": {
     "@types/jsdom": "^28.0.1",
